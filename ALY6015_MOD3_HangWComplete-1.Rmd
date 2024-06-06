@@ -1,0 +1,839 @@
+---
+title: "ALY6015 Week 3 Assignment Hang"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+---
+This is about the single assignment on Sales Data on House
+it has all the code from before so I don't have to sample them from scratch
+
+---
+Install the neccessary libraries
+```{r}
+
+#1. Print the Name of the person and the project
+print("ALY6015 Week 3:Hang Wu")
+
+#Install important packages that will be imported in stage #2
+# install.packages("Hmisc")
+# install.packages("car")
+# install.packages("corrplot")
+# install.packages("function")
+# install.packages("data")
+# #use R 3.6.3 to use the FSA and FSAdata packages
+# install.packages("FSA") #select no to compilation, this will make sure the FSA package is imported. 
+# install.packages("moments")
+# #install.packages("rowr")
+# # install.packages("ggpubr")
+# install.packages("ggplot2")
+# install.packages('psych')
+# install.packages("formattable")
+# install.packages('knitr', dependencies = TRUE)
+# install.packages('FSelector')
+# install.packages("corrr") 
+# install.packages("dplyr")  
+# install.packages("Hmisc")
+# install.packages('mlbench')
+# install.packages(c("cluster.datasets"), dependencies = TRUE)
+# install.packages('caTools')
+# install.packages("plotrix")      # Install plotrix package
+# install.packages("dlookr")
+#install.packages('broom')
+#install.packages('olsrr')
+```
+
+
+load the file
+```{r}
+
+#clean all data from the workspace
+rm(list = ls())
+#close all figures in R Studio
+#dev.off(dev.list()["RStudioGD"])
+
+#2.Import libraries including: FSA, FSAdata, magrittr,  dplyr, plotrix, plot2, and moments
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(RColorBrewer)
+library(car)
+library(MASS)
+library(corrplot)
+library(FSAdata)
+library(FSA)
+library(magrittr)
+library(dplyr)
+#library(tydir)
+library(tidyverse)
+library(plyr)
+library(moments)
+# load e1081, for kurtosis
+#library(e1081) 
+library(grid) #used for watermark
+#library(rowr) 
+library(psych)
+library(formattable)
+library(knitr)
+library(FSelector)
+library(moments)
+library(corrr)
+library("Hmisc") #use rcorr
+library(cluster.datasets)
+library("plotrix")               # Load plotrix
+library(dlookr)
+library(forcats)
+library('broom')
+library('olsrr')
+
+```
+
+
+```{r}
+#2. IMPORT the data.csv data in R,
+getwd()
+setwd("/Users/hangwu/Desktop/Northeastern/6015/Assignment 2/")
+#bio <- read.csv(readLines("Gym suggestion and satisfaction Survey_October 22, 2021_23.49.csv",warn=FALSE),
+#                    header = TRUE,
+#                    sep=","
+#)
+#bank <-read.csv(file="bank-additional.csv", header = TRUE)
+#df <- read.delim("https://s3.amazonaws.com/assets.datacamp.com/blog_assets/test_delim.txt", sep="$")
+#Data Read and Data Cleaning
+House <- read.delim("AmesHousing.csv", sep=",") #since bank data is ; delimited, read.delim is used rather than read.csv
+headtail(House)
+class(House)
+str(House)
+describe(House)
+#House = na.omit(House)
+df = House
+#res <- gain.ratio(g~., df)
+
+is.na(df)
+
+#replace the NULL's with 0
+df[is.null(df)] <- 0
+#replace the NA with 0
+df[is.na(df)] <- 0
+
+#takes backup of df
+df.backup <- df
+```
+
+
+```{r}
+
+df <- df %>% replace(.=="NULL", NA) # replace with NA
+#df.Num <- select_if(df, is.numeric) #select only numeric column
+#df.Ord <- select_if(df, is.factor) #select only ordinal column
+
+
+#takes sample, sample size = 75% without replacement
+require(caTools)
+set.seed(101) 
+sample = sample.split(df$SalePrice, SplitRatio = .75)
+df = subset(df, sample == TRUE)
+
+#split into numeric and ordinal variables, ordinal variables and generally mapped with level 1..7, and 
+#numeric columns stay the same, todo: frequency of all columns and mutate every low freqeuncy levels
+
+df.Num <- select_if(df, is.numeric) #select only numeric column
+df.Ord <- select_if(df, is.factor) #select only ordinal column
+
+test  = subset(df, sample == FALSE)
+
+df<-as.data.frame(df)
+
+##perform Shapiro-Wilk test for normality
+y = df$SalePrice
+shapiro.test(y)
+m = mean(y)
+std = sd(y)
+
+
+mean(df$SalePrice)
+shapiro.test(df$SalePrice)
+
+```
+
+Confidence Interval Test For the Sample Against the Population
+```{r}
+#Confidence Interval Test For the Sample Against the Population
+
+LowerBound = m-1.96*(std/(10000**0.5))
+LowerBound
+#-79.39087
+UpperBound = m+1.96*(std/(10000**0.5))
+UpperBound
+
+#Plot CI in R using ggplot
+levels(factor(df$SalePrice))
+p<-ggplot(df, aes(x=df$Order, y=df$SalePrice)) +        # ggplot2 plot with confidence intervals
+  geom_point() +
+  geom_errorbar(aes(ymin = LowerBound, ymax = UpperBound))
+p + ggtitle("Plot 1. CI Plot of the Sample") +
+  ylab("Price($)")+
+       xlab("Order ID")
+ggsave('CI OrderID.png')
+
+#Plot CI using another package
+plotCI(x=df$Order, 
+       y=df$SalePrice,
+       li = LowerBound,
+       ui = UpperBound)
+
+##CI based on the PID(region ID)
+p<-ggplot(df, aes(x=df$PID, y=df$SalePrice)) +        
+  # ggplot2 plot with confidence intervals
+  geom_point() +
+  geom_errorbar(aes(ymin = LowerBound, ymax = UpperBound))
+p + ggtitle("Plot 1. CI Plot of the Sample") +
+  ylab("Price($)")+
+  xlab("PID Region")
+ggsave('CI PID.png')
+
+```
+```{r}
+#table
+formattable(describe(House), list(
+  kurtosis = color_tile("white", "orange"),
+  skew = color_tile("white", "red"),
+  se = color_tile("white", "blue"),
+  range = formatter("span", style = x ~ ifelse(x == "A",
+                                               style(color = "green", font.weight = "bold"), NA)),
+  #area(col = c(sd, se),row=TRUE) ~ normalize_bar("pink", 0.2),
+  def = formatter("span",
+                          style = x ~ style(color = ifelse(rank(-x) <= 3, "green", "gray")),
+                          x ~ sprintf("%.2f (rank: %02d)", x, rank(-x))),
+  abc = formatter("span",
+                         style = x ~ style(color = ifelse(x, "green", "red")),
+                         x ~ icontext(ifelse(x, "ok", "remove"), ifelse(x, "Yes", "No")))
+))
+df.des = describe(House)
+df.des.sp <- as.data.frame(unlist(df.des["SalePrice",]))
+write.csv(df.des,'HouseDescription.csv')
+
+#Identify Outlier, anomorlies
+
+#Using Box Chart
+p<-ggplot(df) +
+  aes(x = "", y = SalePrice) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+p + ggtitle("Plot 1a. Sale Price Box Chart") +
+  xlab("House") + ylab("Sale Price($)")
+
+#Using Histogram
+# Add mean line
+p+ geom_vline(aes(xintercept=mean(df$SalePrice)),
+              color="blue", linetype="dashed", size=1)
+# Histogram with density plot
+p.p<-ggplot(df, aes(x=df$SalePrice)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666") 
+p.p + ggtitle("Plot 1b. Density Histogram for Sales Price") +
+  xlab("Price($)") + ylab("Density")
+
+boxplot.stats(df$SalePrice)$out
+out <- boxplot.stats(df$SalePrice)$out
+out_ind <- which(df$SalePrice %in% c(out))
+out_ind
+df[out_ind, ]
+#mtext(paste("Outliers: ", paste(out, collapse = ", ")))
+lower_bound <- quantile(df$SalePrice, 0.025)-1.5*IQR(df.Num$SalePrice)
+lower_bound
+upper_bound <- quantile(df$SalePrice, 0.95)+ 1.5*IQR(df.Num$SalePrice)
+upper_bound
+outlier_ind <- which(df$SalePrice < lower_bound | df$SalePrice > upper_bound)
+outlier_ind
+df.out <-df[outlier_ind, 'SalePrice']
+count(df.out)
+boxplot(df$SalePrice,
+        ylab = "Sale Price",
+        main = "Sale Price in Ames"
+)
+
+mtext(paste("Outliers: ", paste(df.out , collapse = ", ")))
+
+###Frequency plot Q plot
+# qplot(abs(df$SalePrice),
+#       geom="histogram",
+#       binwidth = 5,  
+#       main = "Plot 1c: Frequency of Sale Price", 
+#       xlab = "Call Duration(s)",
+#       ylab = "Count",
+#       fill=I("blue"), 
+#       col=I("red"), 
+#       alpha=I(.2),
+#       xlim=c(0,1000))
+# qplot(count(round(df$SalePrice))$freq,
+#       geom="histogram",
+#       binwidth = 5,  
+#       main = "Plot 1c: Frequency of the Sales Price Frequency", 
+#       xlab = "Slaes Price Frequency",
+#       ylab = "Frequency",
+#       fill=I("blue"), 
+#       col=I("red"), 
+#       alpha=I(.2),
+#       xlim=c(0,30))
+
+
+```
+
+
+```{r}
+
+##replace outliers with the mean value of the salessprice, change the variance but doesn'tchange the mean
+# out.r = quantile(df.Num$SalePrice)[4] + 1.5*IQR(df.Num$SalePrice)
+# out.l = quantile(df.Num$SalePrice)[1] - 1.5*IQR(df.Num$SalePrice)
+# df[df['SalePrice']>=out.r]=mean(df[['SalePrice']])
+# df[df['SalePrice']<=out.l]=mean(df[['SalePrice']])
+
+###cleaning: eliminate low frequency entries (outliers type 1)
+###cleaning: eliminate outliers using Q3+INQ
+a = summary(df.Num)
+class(a)
+a = as.data.frame(a)
+a.a = a[229:234,]$Freq
+
+#include in r
+a.a['1st Qu' %in% a.a]
+a.a[any('1st Qu'==a.a)]
+a.a[match('1st Qu',a.a)]
+##Feature Importance Test
+#Random Forest
+```
+
+
+
+Correlation Analysis:
+```{r}
+
+#correlation hypothesis test
+#H0 : ρ = 0 no correlation between X and Y in the population
+#H1 : ρ ≠ 0 there is a significant correlation between X and Y
+#Data are quantitative and obtained from a random sample
+#There are no (obvious) outliers: check visually in the X-Y plot
+#X and Y are (approximately) normally distributed
+#Scatter plot shows that the data are approximately linearly related
+
+
+
+class(df.Num)
+
+#pairs(df.Num)
+is.null(df.Num)
+df.Num<-na.omit(df.Num)
+correlation <- cor(df.Num)
+corrplot(correlation, method="square",is.corr = FALSE, 
+         main ="Plot 2a: Correlation Matrix of All Numeric Attributes",
+         mar = c(1, 2, 2, 1),
+         pch=4,
+         cl.ratio=0.4,
+         tl.cex = 0.5)#tl changes the label of the legendß
+
+df1 <- rcorr(as.matrix(df.Num),type=c("pearson","spearman"))
+df.r = as.data.frame(df1$r) 
+df.p =  as.data.frame(df1$P)
+df.r = df.r[order(df.r$SalePrice),]
+df.p = df.p[order(df.p$SalePrice),]
+
+#convert ordinal data into numeric data
+# map every category columns to levels
+lvls <- round(c(7,6,5,4,3,2,1)) #ordinal levels are always from excellent or finished to poor or unfinished, therefore the number is mapped from high to low
+
+for (i in colnames(df.Ord)){
+  #print(df.Ord[[i]])
+  df.Ord[[i]] <- lvls[df.Ord[[i]]] #convert all into numeric data
+}
+##Special Custom Mapping
+#House zoning mapping
+lvls <- c(0,0,-1,3,1,0,2)
+df.Ord$MS.Zoning<-lvls[df$MS.Zoning]
+
+#Fense
+lvls <- c(2,1,2,1,0)
+df.Ord$MS.Zoning<-lvls[df$Fence]
+
+#######
+df.Ord <- as.data.frame(df.Ord)
+describe(df.Ord)
+# construct a correlation with salesprice
+#add the saleprice to the category(after conversion) dataset
+df.Ord[ncol(df.Ord)+1] <- df[['SalePrice']]
+
+str(df.Ord)
+colnames(df.Ord)[ncol(df.Ord)] <- "SalePrice"
+#######
+
+###correlation analysis for ordinal data
+
+#pairs(df.Ord)
+correlation <- cor(df.Ord)
+corrplot(correlation, method="square",
+         main ="Plot 2b: Correlation Matrix of All Ordinal Attributes",
+         mar = c(1, 2, 2, 1),
+         pch=4,
+         cl.ratio=0.4,
+         tl.cex = 0.5)#tl changes the label of the legendß
+
+df1 <- rcorr(as.matrix(df.Ord),type=c("pearson","spearman"))
+df.r = as.data.frame(df1$r) 
+df.p =  as.data.frame(df1$P)
+df.r = df.r[order(df.r$SalePrice),]
+df.p = df.p[order(df.p$SalePrice),]
+write.csv(as.data.frame(df.r),'correlationmatrixOrdinalRR.csv') #record ordered correlation
+write.csv(as.data.frame(df.p),'correlationmatrixOrdinalPP.csv') #record ordered correlation
+
+
+#############
+#print(colnames(df.Num))
+#Scatter Matrix
+pairs(df.Num[,35:39], col=df.Num$SalePrice,mar = c(1, 2, 2, 1))
+pairs(df.Num[,c(1,2,3,4,5,39)],col=df.Num$SalePrice,mar = c(1, 2, 2, 1))
+pairs(df.Num[,c(6,7,8,9,10,39)],col=df.Num$SalePrice,mar = c(1, 2, 2, 1))
+
+pairs(df.Num[,c(39,6,18,28,29,39)],col=df.Num$SalePrice,mar=c(1,2,2,1))
+pairs(df.Num[,c(14,15,21,8,27,9,39)],col=df.Num$SalePrice,mar=c(1,2,2,1))
+pairs(df.Num[,c(10,25,26,11,4,39)],col=df.Num$SalePrice,mar=c(1,2,2,1))
+pairs(df.Num[,c(30,31,5,19,22,39)],col=df.Num$SalePrice,mar=c(1,2,2,1))
+pairs(df.Num[,c( 16,13,23,34,39)],col=df.Num$SalePrice,mar=c(1,2,2,1))             
+               
+#################
+#print(colnames(df.Ord))
+pairs(df.Ord[,c(44,39,19,31,22,35,28,34)],col=df.Num$SalePrice,mar=c(1,2,2,1))
+pairs(df.Ord[,c(44,24,4,33,40,18,25,1)],col=df.Num$SalePrice,mar=c(1,2,2,1))
+pairs(df.Ord[,c(10,17,20,36,37,13,43,44)],col=df.Num$SalePrice,mar=c(1,2,2,1))
+pairs(df.Ord[,c(29,14,38,9,21,42,3,44)],col=df.Num$SalePrice,mar=c(1,2,2,1))
+```
+```{r}
+
+#write.csv(as.data.frame(df1$r),'correlationmatrixR.csv')
+# write.csv(as.data.frame(df1$P),'correlationmatrixP.csv')
+write.csv(as.data.frame(df.r),'correlationmatrixRR.csv') #record ordered correlation
+write.csv(as.data.frame(df.p),'correlationmatrixPP.csv') #record ordered correlation
+```
+
+
+
+```{r}
+
+####group data by player, adds a column that takes values 1, 2, 3,4,5 for 0-20%, >20-40%,>40-60%, >60-80%, >80-100% percentiles segmentation. 
+#df.Num <- df %>% mutate(odds_ntile = ntile(dfC$odds, 5))
+#dfC <- dfC %>% mutate(date_ntile = ntile(dfC$date, 5))
+#dfC <- dfC %>% mutate(season_ntile = ntile(dfC$season, 5))
+
+
+##chi square matrix that record all p values, such that using the p valeus to identify every related columns
+chisqmatrix <- function(x) {
+  names = colnames(x);  num = length(names)
+  m = matrix(nrow=num,ncol=num,dimnames=list(names,names))
+  for (i in 1:(num-1)) {
+for (j in (i+1):num) {
+    #if categoricaal, use xta,else chisq test
+    if(is.numeric(x[,i] | is.numeric(x[,j]))){
+      m[i,j] = chisq.test(x[,i],x[,j],)$p.value
+      #n[i,j]=  chisq.test(x[,i],x[,j],)$residuals
+    }else{
+      
+       m[i,j] = chisq.test(xtabs(~ x[,i] + x[,j], data = df,addNA = TRUE),)$p.value
+    }
+      
+    }
+  }
+  return (m)
+}
+
+#selected the columns tht are useful
+#dt<-dfC[,c(7,8,10,16,17,18,19,20,21,28,29,30,31,42,43,44,45)]
+#dt
+#dt[dt==0]<-NA
+#mat = chisqmatrix(dt)
+mat.db = chisqmatrix(df)
+a<-count(mat.db)
+a$Var1
+a$Var2
+a$Freq
+#write.csv(as.data.frame(mat.Num),'ChisqPValueMatrix.csv') #record p-value
+#write.csv(as.data.frame(mat),'ChisqPValueMatrixFull.csv') #record p-value
+write.csv(as.data.frame(mat.db),'ChisqPValueMatrixDB.csv') #record p-value
+```
+
+
+
+Create a categorical variable to represent 5 quantiles of the SalePrice distribution. Conduct a Chi-square test of independence to validate whether SalePrice is dependent on the neighborhood location of the houses. Write a brief paragraph on your findings. Include a brief description of any technical difficulties faced and how you resolved them.
+```{r}
+Quantile <- factor(c('0%','20%', '40%', '60%', '80%'))
+q <- quantile(df$SalePrice,c(0.2,0.4,0.6,0.8))
+
+#df$Quant<-factor(df$Quant,
+               #  levels = c('0%','20%', '40%', '60%', '80%')
+               #  )
+
+
+# df$Quant[(df$SalePrice<q[2]) & (df$SalePrice>q[1])]<-'20%'
+# df$Quant[(df$SalePrice<q[3]) & (df$SalePrice>q[2])]<-'40%'
+# df$Quant[(df$SalePrice<q[4]) & (df$SalePrice>q[3])]<-'60%'
+# df$Quant[(df$SalePrice>q[4])]<-'80%'
+# df$Quant[is.na(df$SalePrice)]<-'0%'
+# str(df$Quant)
+# class(df$Quant)
+
+mySample<-df
+#using mutate() function to generate c
+#ategorical values with respect to the quantiles of sale price. T
+#his command will result in a column that takes 
+#values 1, 2, 3,4,5 for 0-20%, >20-40%,>40-60%, >60-80%, >80-100% percentiles segmentation. 
+mySample <- mySample %>% mutate(SalePrice_ntile = ntile(mySample$SalePrice, 5))
+
+# specifying gross_ntile as factor
+#mySample<- set_col_as_factor(mySample, cols=c("SalePrice_ntile"))
+mySample$SalePrice_ntile
+
+####### Chi Square Indep
+
+chisq <- chisq.test(df$SalePrice,df$Neighborhood)
+#chisq$observed
+#round(chisq$expected,2)
+#round(chisq$residuals, 3)
+
+# Chi Square Testing:  Whether Gross Revenue is dependent on Content Rating
+myChisq <- xtabs(~ mySample$SalePrice_ntile + mySample$Neighborhood, data = mySample)
+myChisq  #for printing the cross tabulation
+
+chisq.test(myChisq) # running chi-square test
+
+# here we write one single line of command to produce result xtabs is specified inside chisq.test()
+chisq.test(xtabs(~ mySample$SalePrice_ntile + as.factor( mySample$Neighborhood), data = mySample)) 
+
+# Initialize file path
+file_path= "Correlation matrix.png"
+png(height=1800, width=1800, file=file_path, type = "cairo")
+
+corrplot(chisq$residuals, is.cor = FALSE)
+
+# Then
+dev.off()
+
+########### ANOVA
+
+# str(df$Exterior.1st)
+# y<-df$SalePrice
+# A<-df$Exterior.1st
+# B<-df$Neighborhood
+# class(B)
+# 
+# X = count(B)[order(count(B)$freq),]
+# write.csv(as.data.frame(X),'Frequency of Neighborhood.csv') 
+# Y = count(A)[order(count(A)$freq),]
+# write.csv(as.data.frame(Y),'Frequency of Exterior.csv') 
+# 
+# ###drop categories with low freq
+# B[levels(B)==c('Other','AsphShn','CBlock','Stone')]=0
+# #B <- B[-c('Other','AsphShn','CBlock','Stone')] #drop levels
+# new_B <- subset(B, levels(B)!=c('Other','AsphShn','CBlock','Stone'))
+# 
+# #drop unused factor levels
+# B <- droplevels(B)
+# B<-new_B
+# str(B)
+# 
+# A[levels(A) == c('ImStucc','Stone','AsphShn','CBlock','BrkComm')]=0
+# levels(A)
+# new_A1<-A[-c(8,12,2,5,2)]
+# length(new_A1) #2388
+# length(A) #2392
+# new_A <- subset(A, levels(A)!=c('ImStucc','Stone','AsphShn','CBlock','BrkComm'))
+# length(new_A)#2243
+# A <- droplevels(A)
+# A<-new_A
+# 
+# ##freqeuncy plot to see the category
+# p.p<-ggplot(data.frame(X), aes(x=X$x,y=X$freq)) + 
+#   geom_bar(stat="identity")
+# #colour="black", fill="white")+
+# #geom_density(alpha=.2, fill="#FF6666") 
+# p.p + ggtitle("Plot Tri 3. Expected Frequency") +
+#   xlab("Cost Benefit Ratio") + ylab("Density")
+# ggsave("Plot5Alpha1.png")
+# 
+# 
+# # Two Way Factorial Design
+# fit <- aov(y ~ A + B + A:B, data=df)
+# fit <- aov(y ~ A*B, data=df) # same thing
+# 
+# png(file=file_path, type = "cairo")
+# layout(matrix(c(1,2,3,4),2,2)) # optional layout
+# # Initialize file path
+# file_path= "Diagnostic Plot.png"
+# 
+# plot(fit) # diagnostic plots
+# dev.off()
+```
+
+ANNOVA
+2. Conduct a two-way ANOVA for “Sale Price” of houses in Ames, IA with respect to two independent factors – Neighborhood (use column Neighborhood), and Exterior Covering on house (use column 1st). Include interaction effects of Neighborhood and Exterior Covering in your analysis. Write a brief report on the findings. Include a brief description of any technical difficulties faced and how you resolved them.
+
+```{r}
+# ########### ANOVA
+# 
+# str(df$Exterior.1st)
+# y<-df$SalePrice
+# A<-df$Exterior.1st
+# B<-df$Neighborhood
+# class(B)
+# 
+# X = count(B)[order(count(B)$freq),]
+# write.csv(as.data.frame(X),'Frequency of Neighborhood.csv') 
+# Y = count(A)[order(count(A)$freq),]
+# write.csv(as.data.frame(Y),'Frequency of Exterior.csv') 
+# 
+# ###drop categories with low freq
+# B[levels(B)==c('Other','AsphShn','CBlock','Stone')]=0
+# #B <- B[-c('Other','AsphShn','CBlock','Stone')] #drop levels
+# new_B <- subset(B, levels(B)!=c('Other','AsphShn','CBlock','Stone'))
+# 
+# #drop unused factor levels
+# B <- droplevels(B)
+# B<-new_B
+# str(B)
+# 
+# A[levels(A) == c('ImStucc','Stone','AsphShn','CBlock','BrkComm')]=0
+# levels(A)
+# new_A1<-A[-c(8,12,2,5,2)]
+# length(new_A1) #2388
+# length(A) #2392
+# new_A <- subset(A, levels(A)!=c('ImStucc','Stone','AsphShn','CBlock','BrkComm'))
+# length(new_A)#2243
+# A <- droplevels(A)
+# A<-new_A
+# 
+# ##freqeuncy plot to see the category
+# p.p<-ggplot(data.frame(X), aes(x=X$x,y=X$freq)) + 
+#   geom_bar(stat="identity")
+# #colour="black", fill="white")+
+# #geom_density(alpha=.2, fill="#FF6666") 
+# p.p + ggtitle("Plot Tri 3. Expected Frequency") +
+#   xlab("Cost Benefit Ratio") + ylab("Density")
+# ggsave("Plot5Alpha1.png")
+# 
+# 
+# # Two Way Factorial Design
+# fit <- aov(y ~ A + B + A:B, data=df)
+# fit <- aov(y ~ A*B, data=df) # same thing
+# 
+# png(file=file_path, type = "cairo")
+# layout(matrix(c(1,2,3,4),2,2)) # optional layout
+# # Initialize file path
+# file_path= "Diagnostic Plot.png"
+# 
+# plot(fit) # diagnostic plots
+# dev.off()
+# #############################
+# 
+# two_way_fit <- aov(y ~ A + as.factor(B), data=df)
+# two_way_fit2 <- aov(y ~ A + B, data=df)
+# summary(two_way_fit)
+# summary(two_way_fit2)
+# capture_a <- summary(two_way_fit2)
+# capture.output(capture_a, file = "anova results.txt")
+# #write.csv(as.data.frame(summary(two_way_fit2)),'Two_Way_Fit') #record ordered correlation
+# A
+# B
+# y
+# 
+# file_path= "Correlation matrix.png"
+# png(file=file_path, type = "cairo")
+# interaction.plot(x.factor = B[0:1000], #x-axis variable
+#                  trace.factor = A[0:1000], #variable for lines
+#                  response = y[0:1000], #y-axis variable
+#                  fun = mean, #metric to plot
+#                  ylab = "Sale Price ($)",
+#                  xlab = "Neighborhood",
+#                  col = c("red", "blue", "cyan", "yellow", "green"),
+#                  lty = 1, #line type
+#                  lwd = 2, #line width
+#                  trace.label = "Exterior")
+# 
+# dev.off()
+# 
+# 
+
+
+
+```
+
+```{r LM coefficient}
+#coiefficent for attributes that are selected, explainatory variables, df.num[,c(6,'gr.liv.area'
+#'Garage.Cars','Garage.Area']c(6,18,28,29)
+#df.num[,4]
+#mutate_if(is.numeric, ~replace(., is.na(df.Ord), 0))
+#df.Ord[is.na(df.Ord)] <- mean(df.Ord) #replace all NA values in ordinal levels to be 0, didn't replace to the mean value because it only helps with the residue data
+
+#df.Ord[is.na(df.Ord[,35])]=NA #mark all 0 values into na attributes so they can be deleted.
+
+#df.Ord=sample_n(df.Ord,300,replace=F)
+#df.Num=sample_n(df.Ord,300,replace=F)
+
+model1 <- lm(SalePrice ~ df.Num[,6], data = df.Num)#overall qual
+model2 <- lm(SalePrice ~ df.Num[,18], data = df.Num)#above grade(level 1) area,g area (square feet)
+model3 <- lm(SalePrice ~ df.Num[,28], data = df.Num)#Size of garage in car capacity,discrete
+model4 <- lm(SalePrice ~ df.Num[,29], data = df.Num)#Size of garage in square feet,continuous
+model5 <- lm(SalePrice ~ df.Ord[,39], data = df.Ord)#pool
+model6 <- lm(SalePrice ~ df.Ord[,19], data = df.Ord)#exterior
+model7 <- lm(SalePrice ~ df.Ord[,31], data = df.Ord)#kitchen
+model8 <- lm(SalePrice ~ df.Ord[,22], data = df.Ord)#bsmt
+model9 <- lm(SalePrice ~ df.Ord[,35], data = df.Ord)#garage finish
+
+#time to multi linear this so we can test multicolinearity
+model10 <- lm(df.Num[,39]~df.Num[,6]+df.Num[,18]+df.Ord[,35])#OC+living area+GF
+model11 <- lm(df.Num[,39]~df.Num[,6]+df.Num[,31]+df.Ord[,22])# emplore multicolinearity bc we know kichen and bsmt quality are related
+
+#model1$coefficients
+
+#summary of all of the models
+print('overall qual')
+summary(model1)
+print('Above grade (ground) living area (square feet)')
+summary(model2)
+print('Size of garage in square feet,continuous')
+summary(model4)
+print('Pool Quality')
+summary(model5)
+# summary(model5)
+# summary(model6)
+# summary(model7)
+# summary(model8)
+print('Garage Finish Quality')
+summary(model9)
+print('MLM 1')
+summary(model10)
+#model1$residuals
+print('MLM 2')
+summary(model11)
+#count(df.Num$Overall.Qual)
+```
+
+```{r multicolinearity}
+#build the model with all predictors,regardless correlation
+df.Ord[is.na(df.Ord)]=0
+modelCompNum <- lm(SalePrice ~., data = na.omit(df.Num),singular.ok = TRUE)
+modelCompOrd <- lm(SalePrice ~., data = na.exclude(df.Ord),singular.ok = TRUE)
+#car::vif(modelCompNum)
+ols_num<-ols_vif_tol(modelCompNum)
+ols_ord<-ols_vif_tol(modelCompOrd)
+write.csv(ols_num,'NumOLSVif.csv')
+write.csv(ols_ord,'OrdOLSVif.csv')
+#write.csv(alias.mod,'AllPredictorAlias.csv')
+ols_plot_resid_fit_spread(modelCompNum)
+ols_plot_obs_fit(modelCompNum)
+ols_plot_obs_fit(model11)
+ols_plot_added_variable(model10)
+ols_plot_diagnostics(model10)
+```
+```{r alias}
+alias(modelCompNum,complete = TRUE, partial = FALSE,
+      partial.pattern = FALSE)
+alias(modelCompOrd,complete = TRUE, partial = FALSE,
+      partial.pattern = FALSE)
+```
+
+
+
+Residue Plot
+```{r Residue Plot}
+# ###Best
+# model.diag.metrics <- augment(model1)
+# #residue plot against the highest R2 and F, OC
+# ggplot(model.diag.metrics, aes(df.Num[, 6], SalePrice)) +
+#   geom_point() +
+#   stat_smooth(method = lm, se = FALSE) +
+#   geom_segment(aes(xend = df.Num[,6], yend = .fitted), color = "red", size = 0.3)+
+#   xlab('Overall Quality')
+#   ggsave('HighestR2ResiduePlot.png')
+# 
+# ##worst R2: Garagew Finish
+# model.diag.metrics <- augment(model9)
+# #residue plot against the highest R2 and F, OC
+# ggplot(model.diag.metrics, aes(unlist(model.diag.metrics[,3]), SalePrice)) +
+#   geom_point() +
+#   stat_smooth(method = lm, se = FALSE) +
+#   geom_segment(aes(xend =unlist(model.diag.metrics[,3]) , yend = .fitted), color = "red", size = 0.3)+
+#   xlab('Garage Finish')
+#   ggsave('LowestR2ResiduePlot.png')
+# 
+# 
+# #worst t-stat: Pool Quality
+# model.diag.metrics <- augment(model5)
+# #residue plot against the highest R2 and F, OC
+# ggplot(model.diag.metrics, aes(unlist(model.diag.metrics[,3]), SalePrice)) +
+#   geom_point() +
+#   stat_smooth(method = lm, se = FALSE) +
+#   geom_segment(aes(xend =unlist(model.diag.metrics[,3]) , yend = .fitted), color = "red", size = 0.3)+
+#   xlab('Pool Quality')
+#   ggsave('LowestTValueResiduePlot.png')
+#   
+df.Ord[df.Ord==0]=NA
+#   ###Best
+  ggplot(df.Num, aes(df.Num$Overall.Qual, model1$residuals)) +
+  geom_point() +
+  stat_smooth(method = lm, se = FALSE) +
+  geom_segment(aes(xend =df.Num$Overall.Qual , yend = model1$residuals ), color = "red", size = 0.3)+
+  xlab('Overall Quality')+
+  ggtitle('Overall Quality vs the Residues')
+  ggsave('HighestR2ResiduePlot2.png')
+  
+  ggplot(df.Num, aes(df.Num$Gr.Liv.Area, model2$residuals)) +
+  geom_point() +
+  stat_smooth(method = lm, se = FALSE) +
+  geom_segment(aes(xend =df.Num$Gr.Liv.Area , yend = model2$residuals ), color = "red", size = 0.3)+
+  xlab('Above Ground Living Area')+
+    ggtitle('Living Area vs the Residues')
+  ggsave('HighestR2ResiduePlot1.png')
+
+   ##worst R2: Garage Finish 
+   ggplot(na.omit(df.Ord), aes(na.omit(df.Ord$Garage.Finish), model9$residuals)) +
+  geom_point() +
+  stat_smooth(method = lm, se = FALSE) +
+  geom_segment(aes(xend =na.omit(df.Ord$Garage.Finish) , yend = model9$residuals ), color = "red", size = 0.3)+
+  xlab('Garage Finish')+
+   ggtitle('Garage Finish vs the Residues')
+  ggsave('LowestR2ResiduePlot1.png')
+  
+  kurtosis(model9$residuals)
+  skewness(model9$residuals)
+  #worst t-stat: Pool Quality 
+  ggplot(na.omit(df.Ord), aes(na.omit(df.Ord$Pool.QC), model5$residuals)) +
+  geom_point() +
+  stat_smooth(method = lm, se = FALSE) +
+  geom_segment(aes(xend =na.omit(df.Ord$Pool.QC) , yend = model5$residuals ), color = "red", size = 0.3)+
+  xlab('Pool Quality')+
+        ggtitle('Pool Quality vs the Residues')
+  ggsave('LowestTvalueResuePlot1.png')
+```
+
+PLot the QQ Plot as well as other diagnostic plot
+```{r QQ Plot}
+plot(model1, 1)
+  
+plot(model2,1)
+dev.off()
+##overall qual
+png('QQPLotOverallQual.png')
+plot(model1, 2,id.n = 5)
+dev.off()
+#living size
+png('QQPLotLiving.png')
+plot(model2, 2,id.n = 5)
+dev.off()
+#pool quality
+png('QQPLotPoolQual.png')
+plot(model5, 2,id.n = 5)
+dev.off()
+#garage finish
+png('QQPlotGarageFinishl.png')
+plot(model9,2,id.n = 5)
+dev.off()
+
+```
+
